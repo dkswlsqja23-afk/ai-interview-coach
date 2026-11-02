@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interview Coach</title>
+  <meta name="description" content="목적, 전공, 난이도에 맞춘 영어 모의 면접. 음성으로 답하고 문법, 어휘, 속도, 구조, 적합성을 바로 확인합니다.">
+  <meta name="theme-color" content="#efeae2">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234169E1'/%3E%3Cpath d='M8 14v4M12 11v10M16 9v14M20 11v10M24 14v4' stroke='%23f6f8ff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Outfit:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 건너뛰기</a>
+  <header class="nav-bar">
+    <div class="nav">
+    <button class="logo" type="button" data-action="goto" data-view="home" data-nav="home">
+      <span class="logo-mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 32 32">
+          <rect width="32" height="32" rx="9" fill="#4169E1"/>
+          <path d="M8 14v4M12 11v10M16 9v14M20 11v10M24 14v4" stroke="#f6f8ff" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      Interview Coach
+    </button>
+    <div class="nav-links">
+      <button class="text-btn" type="button" data-action="goto" data-view="history" data-nav="history">연습 기록</button>
+      <button class="btn primary small" type="button" data-action="goto" data-view="setup">새 면접</button>
+    </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="view-home" class="view">
+      <div id="resume-card" class="resume wrap" hidden>
+        <div>
+          <p class="eyebrow">진행 중인 면접</p>
+          <p id="resume-text"></p>
+        </div>
+        <div class="resume-actions">
+          <button class="btn primary small" type="button" data-action="resume">이어하기</button>
+          <button class="btn ghost small" type="button" data-action="discard">버리기</button>
+        </div>
+      </div>
+
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="kicker">English interview studio</p>
+          <h1 id="hero-title">실전처럼 말하고,<br><span>합격으로 증명하세요.</span></h1>
+          <p class="lede">교환학생, 인턴, 대입 영어 면접을 목적과 전공, 난이도에 맞춰 연습합니다. 질문은 말로 나오고, 답은 문법·어휘·속도·구조·적합성으로 돌아옵니다.</p>
+          <p class="english-line">Build your confidence, one word at a time.</p>
+          <div class="hero-actions">
+            <button class="btn primary" type="button" data-action="goto" data-view="setup">면접 시작하기</button>
+            <button class="btn ghost" type="button" data-action="goto" data-view="history">연습 기록</button>
+          </div>
+          <ul class="hero-notes">
+            <li>AI 코치 요청만 로컬 서버로 전달</li>
+            <li>문항당 시간 제한</li>
+            <li>이전 점수와 비교</li>
+          </ul>
+        </div>
+        <aside class="preview" aria-hidden="true">
+          <div class="preview-top">
+            <p class="eyebrow">예시 화면</p>
+            <p class="eyebrow">교환학생 · 중급</p>
+          </div>
+          <p class="preview-q" lang="en">Why do you want to study abroad?</p>
+          <div class="score-row">
+            <p class="score-xl">82</p>
+            <p>면접에서 통할 수준</p>
+          </div>
+          <div class="meters">
+            <div class="meter"><div class="meter-top"><span>구조</span><span>90</span></div><div class="meter-track"><div class="meter-fill" style="width:90%"></div></div></div>
+            <div class="meter"><div class="meter-top"><span>적합성</span><span>84</span></div><div class="meter-track"><div class="meter-fill" style="width:84%"></div></div></div>
+            <div class="meter"><div class="meter-top"><span>속도</span><span>76</span></div><div class="meter-track"><div class="meter-fill" style="width:76%"></div></div></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section wrap">
+        <div class="section-head">
+          <h2>연습이 면접의 결을 따릅니다</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <span>01</span>
+            <h3>시나리오</h3>
+            <p>교환학생, 인턴·취업, 대입 중에서 목적과 전공, 난이도를 고릅니다.</p>
+          </article>
+          <article class="feature">
+            <span>02</span>
+            <h3>음성 면접</h3>
+            <p>질문을 듣고 마이크로 답합니다. 인식 결과는 고친 뒤 제출할 수 있습니다.</p>
+          </article>
+          <article class="feature">
+            <span>03</span>
+            <h3>꼬리 질문</h3>
+            <p>답이 짧거나 결과와 행동이 빠지면, 면접관이 한 번 더 묻습니다.</p>
+          </article>
+          <article class="feature">
+            <span>04</span>
+            <h3>리포트</h3>
+            <p>문법, 어휘, 속도, 논리 구조, 질문 적합성과 모범 답안을 함께 봅니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section wrap">
+        <h2>세 단계면 한 회가 끝납니다</h2>
+        <ol class="steps">
+          <li class="step"><span>01</span><strong>면접을 설계합니다.</strong> 제한 시간을 켜 두면 문항마다 같은 압박이 들어옵니다.</li>
+          <li class="step"><span>02</span><strong>영어로 답합니다.</strong> 목소리와 키보드를 같이 쓸 수 있고, 기록은 이 브라우저에만 남습니다.</li>
+          <li class="step"><span>03</span><strong>약한 축을 비교합니다.</strong> 이전 세션과 점수를 나란히 두고, 반복되는 약점을 표시합니다.</li>
+        </ol>
+      </section>
+
+      <footer class="site-foot wrap">
+        <p>브라우저 음성 인식과 규칙 기반 분석으로 동작하는 MVP입니다. 음소 단위 발음 점수는 포함되지 않으며, 속도와 군더더기, 문장 완성도로 전달을 봅니다.</p>
+      </footer>
+    </section>
+
+    <section id="view-setup" class="view" hidden>
+      <div class="setup-wrap wrap">
+        <p class="kicker">Session</p>
+        <h1 class="page-title">이번 면접을 설계합니다</h1>
+        <p class="lede">목적, 전공, 난이도가 질문의 결을 바꿉니다.</p>
+
+        <section class="panel">
+          <h2>면접 목적</h2>
+          <div class="choice-grid" role="group" aria-label="면접 목적">
+            <button type="button" data-action="select" data-group="purpose" data-value="exchange" aria-pressed="false">
+              <span class="choice-title">교환학생</span>
+              <span class="choice-blurb">지원 동기, 적응, 학업 계획</span>
+            </button>
+            <button type="button" data-action="select" data-group="purpose" data-value="internship" aria-pressed="false">
+              <span class="choice-title">인턴 · 취업</span>
+              <span class="choice-blurb">직무 역량, 협업, 성과</span>
+            </button>
+            <button type="button" data-action="select" data-group="purpose" data-value="admission" aria-pressed="false">
+              <span class="choice-title">대입 면접</span>
+              <span class="choice-blurb">전공 적합성, 경험, 사고력</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>전공 또는 직무</h2>
+          <p class="help">인턴 면접이면 희망 직무를 고르거나, 영문으로 직접 적으세요.</p>
+          <div class="chips" role="group" aria-label="전공 또는 직무">
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="business" aria-pressed="false">경영학</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="cs" aria-pressed="false">컴퓨터공학</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="english" aria-pressed="false">영어영문학</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="economics" aria-pressed="false">경제학</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="engineering" aria-pressed="false">공학</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="ir" aria-pressed="false">국제관계</button>
+            <button class="chip" type="button" data-action="select" data-group="major" data-value="undecided" aria-pressed="false">분야 미정</button>
+          </div>
+          <input id="custom-major" class="field" type="text" maxlength="40" placeholder="직접 입력, 예: Psychology" aria-label="전공 또는 직무 직접 입력">
+        </section>
+
+        <section class="panel">
+          <h2>난이도</h2>
+          <div class="segment" role="group" aria-label="난이도">
+            <button type="button" data-action="select" data-group="difficulty" data-value="beginner" aria-pressed="false">초급</button>
+            <button type="button" data-action="select" data-group="difficulty" data-value="intermediate" aria-pressed="true">중급</button>
+            <button type="button" data-action="select" data-group="difficulty" data-value="advanced" aria-pressed="false">고급</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>제한 시간과 문항 수</h2>
+          <p class="help">제한 시간이 끝나면 마이크는 멈추고, 문장은 고친 뒤 제출할 수 있습니다.</p>
+          <div class="segment" role="group" aria-label="문항당 제한 시간">
+            <button type="button" data-action="select" data-group="time" data-value="0" aria-pressed="false">없음</button>
+            <button type="button" data-action="select" data-group="time" data-value="45" aria-pressed="false">45초</button>
+            <button type="button" data-action="select" data-group="time" data-value="60" aria-pressed="true">60초</button>
+            <button type="button" data-action="select" data-group="time" data-value="90" aria-pressed="false">90초</button>
+            <button type="button" data-action="select" data-group="time" data-value="120" aria-pressed="false">120초</button>
+          </div>
+          <div class="segment" role="group" aria-label="문항 수">
+            <button type="button" data-action="select" data-group="count" data-value="3" aria-pressed="true">3문항 · 짧게</button>
+            <button type="button" data-action="select" data-group="count" data-value="5" aria-pressed="false">5문항 · 표준</button>
+          </div>
+        </section>
+
+        <div class="summary-bar">
+          <p id="setup-summary">목적과 전공을 고르면 면접이 만들어집니다.</p>
+          <button class="btn primary" type="button" data-action="begin">면접 시작</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-room" class="view" hidden>
+      <div class="room-shell">
+        <header class="room-top">
+          <button class="btn ghost small" type="button" data-action="goto" data-view="home">나가기</button>
+          <p id="room-meta" class="room-meta"></p>
+          <p id="room-progress" class="room-progress" aria-live="polite"></p>
+        </header>
+        <div id="room-dots" class="dots" aria-hidden="true"></div>
+        <div id="timer-wrap" class="timer-wrap">
+          <div class="timer">
+            <svg class="timer-svg" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+              <circle id="ring-fg" class="ring-fg" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <p id="timer-num" class="timer-num">1:00</p>
+          </div>
+          <p id="timer-cap" class="timer-cap">남음</p>
+        </div>
+        <p id="room-focus" class="q-focus"></p>
+        <h2 id="room-question" class="room-question" lang="en"></h2>
+        <button id="btn-listen" class="btn ghost small" type="button" data-action="listen">질문 듣기</button>
+        <div class="composer">
+          <label for="transcript">답변</label>
+          <textarea id="transcript" lang="en" maxlength="2500" spellcheck="true" placeholder="영어로 답변을 입력하거나, 마이크 인식 결과를 고치세요."></textarea>
+          <div class="composer-meta">
+            <p id="interim-line" class="interim" aria-live="polite"></p>
+            <p id="word-count" class="word-count" aria-live="polite">0 words</p>
+          </div>
+        </div>
+        <p id="timeup-note" class="timeup" hidden>시간이 끝났습니다. 마이크는 멈추고, 문장은 고친 뒤 제출할 수 있습니다.</p>
+        <div class="mic-row">
+          <button id="btn-mic" class="mic" type="button" data-action="toggle-mic" aria-pressed="false" aria-label="답변 녹음 시작" disabled>
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+              <path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span>말하기</span>
+          </button>
+        </div>
+        <button id="start-btn" type="button" aria-pressed="false">🎙️ 마이크 켜고 말하기</button>
+        <div id="result" style="margin-top: 10px; padding: 10px; border: 1px solid #ddd;" aria-live="polite">
+          인식된 텍스트가 여기에 표시됩니다.
+        </div>
+        <p id="mic-note" class="mic-note" hidden>이 브라우저는 음성 인식을 지원하지 않습니다. 텍스트로 연습할 수 있습니다.</p>
+        <p class="room-hint">마이크를 누르고 영어로 답하거나 직접 입력하세요. Ctrl+Enter로 제출합니다.</p>
+        <div class="room-actions">
+          <button class="btn primary" type="button" data-action="submit-answer">답변 제출</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-report" class="view" hidden>
+      <div id="report-root" class="wrap report-wrap"></div>
+    </section>
+
+    <section id="view-history" class="view" hidden>
+      <div id="history-root" class="wrap history-wrap"></div>
+    </section>
+  </main>
+
+  <div id="dict-modal" class="dict-modal" hidden>
+    <div class="dict-card" role="dialog" aria-modal="true" aria-labelledby="dict-title">
+      <div class="dict-head">
+        <div>
+          <p class="kicker">Dictionary</p>
+          <h2 id="dict-title" class="dict-title" lang="en"></h2>
+          <p id="dict-phonetic" class="dict-phonetic" lang="en"></p>
+        </div>
+        <button id="dict-close" class="tip-close" type="button" aria-label="사전 닫기">×</button>
+      </div>
+      <div id="dict-body" class="dict-body"></div>
+    </div>
+  </div>
+  <aside id="tip-card" class="tip-card" hidden aria-labelledby="tip-label">
+    <div class="tip-head">
+      <p id="tip-label" class="tip-label">오늘의 면접 꿀팁</p>
+      <button id="tip-close" class="tip-close" type="button" aria-label="꿀팁 닫기">×</button>
+    </div>
+    <p id="tip-text"></p>
+    <label class="tip-hide" for="tip-hide-today">
+      <input id="tip-hide-today" type="checkbox">
+      오늘 하루 동안 보지 않기
+    </label>
+  </aside>
+  <noscript>면접 연습을 위해 JavaScript를 켜 주세요.</noscript>
+  <script src="script.js"></script>
+  <script src="js/questions.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
