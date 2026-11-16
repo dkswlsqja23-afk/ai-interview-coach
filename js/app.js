@@ -261,6 +261,9 @@
       if (name === "history") historyBtn.setAttribute("aria-current", "page");
       else historyBtn.removeAttribute("aria-current");
     }
+    if (typeof window.interviewCoachSyncTip === "function") {
+      window.interviewCoachSyncTip(name);
+    }
     window.scrollTo(0, 0);
   }
 

@@ -88,17 +88,37 @@
     card.hidden = true;
   }
 
+  function isTipHiddenForToday() {
+    try {
+      return localStorage.getItem(TIP_DAY) === todayStamp();
+    } catch (error) {
+      return false;
+    }
+  }
+
   var tipCard = document.getElementById("tip-card");
   var tipText = document.getElementById("tip-text");
-  var savedTipDay = null;
-  try {
-    savedTipDay = localStorage.getItem(TIP_DAY);
-  } catch (error) {
-    savedTipDay = null;
+  var tipReady = false;
+
+  function syncTipForView(view) {
+    if (!tipCard || !tipText) return;
+    if (isTipHiddenForToday()) {
+      tipCard.hidden = true;
+      return;
+    }
+    if (view === "home") {
+      if (!tipReady) {
+        tipText.textContent = tips[Math.floor(Math.random() * tips.length)];
+        tipReady = true;
+      }
+      tipCard.hidden = false;
+      return;
+    }
+    tipCard.hidden = true;
   }
-  if (tipCard && tipText && savedTipDay !== todayStamp()) {
-    tipText.textContent = tips[Math.floor(Math.random() * tips.length)];
-    tipCard.hidden = false;
+
+  if (tipCard && tipText) {
+    tipCard.hidden = true;
     var tipClose = document.getElementById("tip-close");
     if (tipClose) {
       tipClose.addEventListener("click", function () {
@@ -111,6 +131,7 @@
         if (tipHide.checked) hideTipForToday(tipCard);
       });
     }
+    window.interviewCoachSyncTip = syncTipForView;
   }
 
   var startBtn = document.getElementById("start-btn");
