@@ -28,6 +28,14 @@
   var toastId = 0;
   var saveTimer = 0;
   var lockUntil = 0;
+  var setupChoices = {
+    purpose: null,
+    major: null,
+    difficulty: "intermediate",
+    time: "60",
+    count: "3",
+    customMajor: "",
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -117,35 +125,66 @@
   }
 
   function selected(group) {
-    var el = document.querySelector('[data-group="' + group + '"][aria-pressed="true"]');
-    return el ? el.dataset.value : null;
+    var value = null;
+    document.querySelectorAll('[data-group="' + group + '"]').forEach(function (btn) {
+      if (btn.getAttribute("aria-pressed") === "true") value = btn.getAttribute("data-value");
+    });
+    return value;
   }
 
   function clearGroup(group) {
     document.querySelectorAll('[data-group="' + group + '"]').forEach(function (btn) {
       btn.setAttribute("aria-pressed", "false");
     });
+    if (group === "major") setupChoices.major = null;
+  }
+
+  function pullSetupChoicesFromDom() {
+    ["purpose", "major", "difficulty", "time", "count"].forEach(function (group) {
+      var value = selected(group);
+      if (value != null) setupChoices[group] = value;
+    });
+  }
+
+  function bootstrapSetupChoices() {
+    pullSetupChoicesFromDom();
+    if (!setupChoices.difficulty) setupChoices.difficulty = "intermediate";
+    if (setupChoices.time == null) setupChoices.time = selected("time") || "60";
+    if (!setupChoices.count) setupChoices.count = selected("count") || "3";
   }
 
   function selectGroup(group, value) {
     var found = false;
+    var needle = String(value);
     document.querySelectorAll('[data-group="' + group + '"]').forEach(function (btn) {
-      var on = btn.dataset.value === String(value);
+      var on = btn.getAttribute("data-value") === needle;
       if (on) found = true;
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
-    if (group === "major" && found) $("custom-major").value = "";
+    if (found) setupChoices[group] = needle;
+    if (group === "major" && found) {
+      setupChoices.customMajor = "";
+      var field = $("custom-major");
+      field.value = "";
+      if (document.activeElement === field) field.blur();
+    }
     updateSummary();
     return found;
   }
 
+  function handleSelect(el) {
+    if (!el || el.getAttribute("data-action") !== "select") return;
+    selectGroup(el.getAttribute("data-group"), el.getAttribute("data-value"));
+  }
+
   function readSetup() {
-    var purpose = selected("purpose");
-    var difficulty = selected("difficulty") || "intermediate";
-    var timeLimit = Number(selected("time") || 0);
-    var count = Number(selected("count") || 3);
-    var custom = $("custom-major").value.trim().slice(0, 40);
-    var majorBtn = selected("major");
+    pullSetupChoicesFromDom();
+    var purpose = setupChoices.purpose || selected("purpose");
+    var difficulty = setupChoices.difficulty || selected("difficulty") || "intermediate";
+    var timeLimit = Number(setupChoices.time != null ? setupChoices.time : selected("time") || 0);
+    var count = Number(setupChoices.count != null ? setupChoices.count : selected("count") || 3);
+    var custom = ($("custom-major").value.trim() || setupChoices.customMajor || "").slice(0, 40);
+    var majorBtn = setupChoices.major || selected("major");
     var majorId = majorBtn;
     var majorKo = "";
     var majorEn = "";
@@ -187,8 +226,16 @@
   function updateSummary() {
     var config = readSetup();
     var el = $("setup-summary");
-    if (!config.purpose || !config.majorKo) {
+    if (!config.purpose && !config.majorKo) {
       el.textContent = "목적과 전공을 고르면 면접이 만들어집니다.";
+      return;
+    }
+    if (!config.purpose) {
+      el.textContent = "면접 목적을 선택해 주세요.";
+      return;
+    }
+    if (!config.majorKo) {
+      el.textContent = "전공 또는 직무를 선택해 주세요.";
       return;
     }
     var time = config.timeLimit ? "문항당 " + config.timeLimit + "초" : "시간 제한 없음";
@@ -481,6 +528,7 @@
       return;
     }
     if (view === "setup") {
+      bootstrapSetupChoices();
       updateSummary();
       showView("setup");
       return;
@@ -990,6 +1038,56 @@
     renderHistory();
   }
 
+  var pointerHandledAt = 0;
+
+  function runBodyAction(el, event) {
+    var action = el.getAttribute("data-action");
+    if (!action) return;
+    if (action === "select") {
+      handleSelect(el);
+      return;
+    }
+    if (action === "goto") return goTo(el.getAttribute("data-view"));
+    if (action === "begin") return beginInterview();
+    if (action === "submit-answer") return submitAnswer();
+    if (action === "toggle-mic") return toggleMic();
+    if (action === "listen") return speakCurrentQuestion();
+    if (action === "resume") return resumeInterview();
+    if (action === "discard") return discardActive();
+    if (action === "practice-again") return practiceAgain();
+    if (action === "open-session") return openHistorySession(el.getAttribute("data-id"));
+    if (action === "delete-session") {
+      if (event && event.stopPropagation) event.stopPropagation();
+      return deleteSession(el.getAttribute("data-id"));
+    }
+    if (action === "clear-history") return clearHistory();
+    if (action === "speak-model") return speakModel(Number(el.getAttribute("data-index")));
+  }
+
+  document.body.addEventListener(
+    "pointerdown",
+    function (event) {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      var el = event.target.closest('[data-action="select"]');
+      if (!el) return;
+      handleSelect(el);
+      pointerHandledAt = Date.now();
+    },
+    { passive: true }
+  );
+
+  document.body.addEventListener(
+    "pointerup",
+    function (event) {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      var el = event.target.closest('[data-action="begin"]');
+      if (!el) return;
+      beginInterview();
+      pointerHandledAt = Date.now();
+    },
+    { passive: true }
+  );
+
   document.body.addEventListener("click", function (event) {
     var dictBtn = event.target.closest("[data-dict]");
     if (dictBtn) {
@@ -1002,26 +1100,9 @@
     }
     var el = event.target.closest("[data-action]");
     if (!el) return;
-    var action = el.dataset.action;
-    if (action === "select") {
-      selectGroup(el.dataset.group, el.dataset.value);
-      return;
-    }
-    if (action === "goto") return goTo(el.dataset.view);
-    if (action === "begin") return beginInterview();
-    if (action === "submit-answer") return submitAnswer();
-    if (action === "toggle-mic") return toggleMic();
-    if (action === "listen") return speakCurrentQuestion();
-    if (action === "resume") return resumeInterview();
-    if (action === "discard") return discardActive();
-    if (action === "practice-again") return practiceAgain();
-    if (action === "open-session") return openHistorySession(el.dataset.id);
-    if (action === "delete-session") {
-      event.stopPropagation();
-      return deleteSession(el.dataset.id);
-    }
-    if (action === "clear-history") return clearHistory();
-    if (action === "speak-model") return speakModel(Number(el.dataset.index));
+    var action = el.getAttribute("data-action");
+    if ((action === "select" || action === "begin") && Date.now() - pointerHandledAt < 800) return;
+    runBodyAction(el, event);
   });
 
   function init() {
@@ -1033,7 +1114,14 @@
       speechSynthesis.onvoiceschanged = function () { speechSynthesis.getVoices(); };
     }
     $("custom-major").addEventListener("input", function () {
-      if ($("custom-major").value.trim()) clearGroup("major");
+      var text = $("custom-major").value.trim();
+      if (text) {
+        clearGroup("major");
+        setupChoices.major = null;
+        setupChoices.customMajor = text;
+      } else {
+        setupChoices.customMajor = "";
+      }
       updateSummary();
     });
     $("transcript").addEventListener("input", function () {
@@ -1061,6 +1149,7 @@
     window.addEventListener("beforeunload", function () {
       if (state.view === "room") saveActive();
     });
+    bootstrapSetupChoices();
     updateSummary();
     renderResume();
     showView("home");
