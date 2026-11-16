@@ -43,7 +43,21 @@
       if (!button) return;
       applyTheme(button.getAttribute("data-theme-choice"));
     });
-    document.body.appendChild(group);
+    var links = document.querySelector(".nav-links");
+    if (links) links.appendChild(group);
+    else document.body.appendChild(group);
+    window.interviewCoachPlaceTheme = placeThemeSwitch;
+  }
+
+  function placeThemeSwitch(view) {
+    var sw = document.querySelector(".theme-switch");
+    var links = document.querySelector(".nav-links");
+    if (!sw) return;
+    if (view === "room") {
+      document.body.appendChild(sw);
+      return;
+    }
+    if (links) links.appendChild(sw);
   }
 
   var saved = "light";

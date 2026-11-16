@@ -264,6 +264,9 @@
     if (typeof window.interviewCoachSyncTip === "function") {
       window.interviewCoachSyncTip(name);
     }
+    if (typeof window.interviewCoachPlaceTheme === "function") {
+      window.interviewCoachPlaceTheme(name);
+    }
     window.scrollTo(0, 0);
   }
 
@@ -1116,6 +1119,34 @@
     if (window.speechSynthesis) {
       speechSynthesis.onvoiceschanged = function () { speechSynthesis.getVoices(); };
     }
+    (function bindCustomMajorMobileScroll() {
+      var field = $("custom-major");
+      var setupView = $("view-setup");
+      if (!field) return;
+      var mobileMq = window.matchMedia("(max-width: 720px)");
+      function scrollFieldIntoView() {
+        if (!mobileMq.matches) return;
+        field.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+      function onViewportChange() {
+        scrollFieldIntoView();
+      }
+      field.addEventListener("focus", function () {
+        if (setupView) setupView.classList.add("is-major-focus");
+        setTimeout(scrollFieldIntoView, 320);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", onViewportChange);
+          window.visualViewport.addEventListener("scroll", onViewportChange);
+        }
+      });
+      field.addEventListener("blur", function () {
+        if (setupView) setupView.classList.remove("is-major-focus");
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener("resize", onViewportChange);
+          window.visualViewport.removeEventListener("scroll", onViewportChange);
+        }
+      });
+    })();
     $("custom-major").addEventListener("input", function () {
       var text = $("custom-major").value.trim();
       if (text) {
