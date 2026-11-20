@@ -231,7 +231,7 @@
             <span>말하기</span>
           </button>
         </div>
-        <button id="start-btn" class="room-alt-mic" type="button" aria-pressed="false">🎙️ 마이크 켜고 말하기</button>
+        <button id="start-btn" class="room-alt-mic" type="button" data-action="toggle-mic" aria-pressed="false" disabled>🎙️ 마이크 켜고 말하기</button>
         <div id="result" class="room-speech-out" aria-live="polite">
           인식된 텍스트가 여기에 표시됩니다.
         </div>
@@ -285,9 +285,9 @@
     </label>
   </aside>
   <noscript>면접 연습을 위해 JavaScript를 켜 주세요.</noscript>
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=7"></script>
   <script src="js/questions.js?v=4"></script>
   <script src="js/engine.js?v=4"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

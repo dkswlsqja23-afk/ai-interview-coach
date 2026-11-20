@@ -356,7 +356,7 @@
     stopMic();
     paintTimer(0);
     $("timeup-note").hidden = false;
-    $("btn-mic").disabled = true;
+    setMicButtonsDisabled(true);
     saveActive();
   }
 
@@ -601,22 +601,73 @@
   }
 
   function setMicUi(on) {
+  function setMicButtonsDisabled(disabled) {
+    var primary = $("btn-mic");
+    var alt = $("start-btn");
+    if (primary) primary.disabled = !!disabled;
+    if (alt) alt.disabled = !!disabled;
+  }
+
+  function refreshResultPreview(interim) {
+    var resultEl = $("result");
+    if (!resultEl || state.view !== "room") return;
+    var box = $("transcript");
+    var text = box ? box.value : "";
+    if (state.listening || interim) {
+      var shown = text;
+      if (interim) shown = (shown ? shown + " " : "") + interim;
+      resultEl.textContent = shown || "듣고 있습니다… 영어로 말해 주세요.";
+      return;
+    }
+    resultEl.textContent = text || "인식된 텍스트가 여기에 표시됩니다.";
+  }
+
+  function setMicUi(on) {
     var btn = $("btn-mic");
-    if (!btn) return;
-    btn.classList.toggle("is-listening", on);
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.setAttribute("aria-label", on ? "녹음 멈추기" : "답변 녹음 시작");
-    var label = btn.querySelector("span");
-    if (label) label.textContent = on ? "멈추기" : "말하기";
+    var alt = $("start-btn");
+    if (btn) {
+      btn.classList.toggle("is-listening", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.setAttribute("aria-label", on ? "녹음 멈추기" : "답변 녹음 시작");
+      var label = btn.querySelector("span");
+      if (label) label.textContent = on ? "멈추기" : "말하기";
+    }
+    if (alt) {
+      alt.setAttribute("aria-pressed", on ? "true" : "false");
+      alt.textContent = on ? "🎙️ 마이크 끄기" : "🎙️ 마이크 켜고 말하기";
+    }
   }
 
   function startMic() {
+    if (!state.recognition) {
+      toast("이 브라우저는 음성 인식을 지원하지 않습니다. 텍스트로 답해 주세요.");
+      return false;
+    }
+    if (state.timeUp) {
+      toast("제한 시간이 끝나 마이크는 멈췄습니다. 문장은 고칠 수 있습니다.");
+      return false;
+    }
     if (window.speechSynthesis) speechSynthesis.cancel();
     $("btn-listen").textContent = "질문 듣기";
     state.listening = true;
+    if (!state.speechStamp) state.speechStamp = performance.now();
     setMicUi(true);
     $("interim-line").textContent = "듣고 있습니다…";
-    try { state.recognition.start(); } catch (error) { /* already started */ }
+    refreshResultPreview("");
+    try {
+      state.recognition.start();
+      return true;
+    } catch (error) {
+      state.listening = false;
+      if (state.speechStamp) {
+        state.speechMs += performance.now() - state.speechStamp;
+        state.speechStamp = null;
+      }
+      setMicUi(false);
+      refreshResultPreview("");
+      toast("마이크를 시작하지 못했습니다. 잠시 뒤 다시 눌러 주세요.");
+      return false;
+    }
   }
 
   function stopMic() {
@@ -630,27 +681,26 @@
     }
     setMicUi(false);
     if ($("interim-line") && state.view === "room") $("interim-line").textContent = "";
-  }
+    refreshResultPreview("");
 
   function toggleMic() {
     if (!state.recognition) {
-      toast("이 브라우저는 음성 인식을 지원하지 않습니다. 텍스트로 답해 주세요.");
+    if (state.view !== "room") return;
+    if (state.listening) {
+      stopMic();
       return;
     }
-    if (state.timeUp) {
-      toast("제한 시간이 끝나 마이크는 멈췄습니다. 문장은 고칠 수 있습니다.");
-      return;
-    }
-    if (state.listening) stopMic();
-    else startMic();
-  }
+    startMic();
 
   function setupRecognition() {
     var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) {
       state.recognition = null;
       $("btn-mic").disabled = true;
+      setMicButtonsDisabled(true);
       $("mic-note").hidden = false;
+      var resultEl = $("result");
+      if (resultEl) resultEl.textContent = "이 브라우저는 음성 인식을 지원하지 않습니다.";
       return;
     }
     var rec;
@@ -658,14 +708,15 @@
       rec = new Ctor();
     } catch (error) {
       state.recognition = null;
-      $("btn-mic").disabled = true;
-      $("mic-note").hidden = false;
+      setMicButtonsDisabled(true);
       return;
     }
     rec.lang = "en-US";
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = function (event) {
+      if (!state.speechStamp) state.speechStamp = performance.now();
+      if (state.view !== "room" || state.timeUp) return;
       if (!state.speechStamp) state.speechStamp = performance.now();
       var interim = "";
       var finalText = "";
@@ -683,13 +734,24 @@
         scheduleSave();
       }
       $("interim-line").textContent = interim || "듣고 있습니다…";
+      refreshResultPreview(interim);
     };
     rec.onerror = function (event) {
       if (event.error === "no-speech" || event.error === "aborted") return;
       state.listening = false;
+      if (state.speechStamp) {
+        state.speechMs += performance.now() - state.speechStamp;
+        state.speechStamp = null;
+      }
       setMicUi(false);
+      refreshResultPreview("");
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         toast("마이크 권한이 없습니다. 텍스트로 이어서 연습할 수 있습니다.");
+        setMicButtonsDisabled(true);
+        var denied = $("result");
+        if (denied) denied.textContent = "마이크 권한이 없습니다. 브라우저에서 마이크를 허용해 주세요.";
+      } else {
+        toast("마이크 인식을 사용할 수 없습니다. 텍스트로 답해 주세요.");
       }
     };
     rec.onend = function () {
@@ -704,8 +766,7 @@
       }
     };
     state.recognition = rec;
-    $("btn-mic").disabled = false;
-  }
+    setMicButtonsDisabled(state.view !== "room" || state.timeUp);
 
   function formatWhen(iso) {
     return new Date(iso).toLocaleString("ko-KR", {
@@ -1180,6 +1241,7 @@
       $("transcript").classList.remove("is-invalid");
       updateWordCount();
       scheduleSave();
+      if (!state.listening) refreshResultPreview("");
     });
     $("transcript").addEventListener("keydown", function (event) {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
