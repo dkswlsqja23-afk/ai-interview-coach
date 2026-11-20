@@ -391,8 +391,9 @@
     $("room-question").textContent = question.text;
     $("room-focus").textContent = "의도 · " + question.focus;
     $("btn-listen").textContent = "질문 듣기";
-    $("btn-mic").disabled = !state.recognition || state.timeUp;
+    setMicButtonsDisabled(!state.recognition || state.timeUp);
     $("interim-line").textContent = "";
+    refreshResultPreview("");
   }
 
   function showQuestion(options) {
@@ -418,7 +419,7 @@
     } else if (state.timeUp) {
       paintTimer(0);
       $("timeup-note").hidden = false;
-      $("btn-mic").disabled = true;
+      setMicButtonsDisabled(true);
     } else {
       showOpenTimer();
     }
@@ -600,7 +601,6 @@
     speakText(session.turns[index].model);
   }
 
-  function setMicUi(on) {
   function setMicButtonsDisabled(disabled) {
     var primary = $("btn-mic");
     var alt = $("start-btn");
@@ -682,21 +682,21 @@
     setMicUi(false);
     if ($("interim-line") && state.view === "room") $("interim-line").textContent = "";
     refreshResultPreview("");
+  }
 
   function toggleMic() {
-    if (!state.recognition) {
     if (state.view !== "room") return;
     if (state.listening) {
       stopMic();
       return;
     }
     startMic();
+  }
 
   function setupRecognition() {
     var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) {
       state.recognition = null;
-      $("btn-mic").disabled = true;
       setMicButtonsDisabled(true);
       $("mic-note").hidden = false;
       var resultEl = $("result");
@@ -709,13 +709,13 @@
     } catch (error) {
       state.recognition = null;
       setMicButtonsDisabled(true);
+      $("mic-note").hidden = false;
       return;
     }
     rec.lang = "en-US";
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = function (event) {
-      if (!state.speechStamp) state.speechStamp = performance.now();
       if (state.view !== "room" || state.timeUp) return;
       if (!state.speechStamp) state.speechStamp = performance.now();
       var interim = "";
@@ -767,6 +767,7 @@
     };
     state.recognition = rec;
     setMicButtonsDisabled(state.view !== "room" || state.timeUp);
+  }
 
   function formatWhen(iso) {
     return new Date(iso).toLocaleString("ko-KR", {
