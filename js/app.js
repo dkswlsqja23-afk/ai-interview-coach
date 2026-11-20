@@ -55,13 +55,31 @@
     return "score-poor";
   }
 
-  function toast(message) {
+  function ensureToastEl() {
     var el = $("toast");
-    el.textContent = message;
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    el.setAttribute("aria-atomic", "true");
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function toast(message) {
+    var text = String(message == null ? "" : message);
+    var el = ensureToastEl();
+    el.textContent = text;
     el.classList.add("is-on");
+    el.removeAttribute("aria-hidden");
     var id = ++toastId;
     setTimeout(function () {
-      if (id === toastId) el.classList.remove("is-on");
+      if (id !== toastId) return;
+      el.classList.remove("is-on");
+      el.setAttribute("aria-hidden", "true");
     }, 3200);
   }
 
