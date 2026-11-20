@@ -995,20 +995,44 @@
     fetch("/api/coach", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }).then(function (response) {
-      if (!response.ok) throw new Error(String(response.status));
-      return response.json();
-    }).then(function (data) {
-      if (!data || !data.summary) throw new Error("empty");
-      rememberAiCoach(session, data);
-      var current = document.querySelector("[data-ai-coach]");
-      if (current && state.lastSession && state.lastSession.id === session.id) current.innerHTML = aiCoachHtml(data);
-    }).catch(function () {
-      var current = document.querySelector("[data-ai-coach]");
-      if (!current) return;
-      current.innerHTML = '<p class="kicker">AI Coach</p><p>AI 코치를 불러오지 못했습니다. 페이지를 로컬 서버 주소로 열었는지 확인해 주세요.</p>';
-    });
+      body: JSON.stringify(payload),
+    })
+      .then(function (response) {
+        return response.json().catch(function () {
+          return null;
+        }).then(function (body) {
+          if (!response.ok) {
+            var err = new Error(String(response.status));
+            err.code = body && body.error ? body.error : "";
+            throw err;
+          }
+          return body;
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.summary) throw new Error("empty");
+        rememberAiCoach(session, data);
+        var current = document.querySelector("[data-ai-coach]");
+        if (current && state.lastSession && state.lastSession.id === session.id) current.innerHTML = aiCoachHtml(data);
+      })
+      .catch(function (error) {
+        var current = document.querySelector("[data-ai-coach]");
+        if (!current) return;
+        var status = error && error.message ? error.message : "";
+        var code = error && error.code ? error.code : "";
+        var hint = "규칙 기반 리포트는 위에 그대로 있습니다.";
+        if (status === "404" || code === "coach-unconfigured") {
+          hint = "배포 사이트에서는 Netlify 환경 변수에 API 키가 설정되어 있어야 합니다. 로컬에서는 server.ps1로 연 주소로 열어 주세요.";
+        } else if (code === "coach-unavailable" || status === "502" || status === "503") {
+          hint = "AI 서비스가 일시적으로 응답하지 않았습니다. 잠시 후 리포트에서 다시 열거나, 로컬 서버로 연습해 보세요.";
+        } else if (status === "Failed to fetch" || status.indexOf("fetch") >= 0) {
+          hint = "네트워크 연결을 확인해 주세요.";
+        }
+        current.innerHTML =
+          '<p class="kicker">AI Coach</p><h2>코치 의견을 불러오지 못했습니다</h2><p>' +
+          escapeHtml(hint) +
+          '</p><p class="fineprint">항목별 점수, 모범 답안, 추천 어휘는 그대로 이용할 수 있습니다.</p>';
+      });
   }
 
   function openReport(session) {
