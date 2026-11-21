@@ -598,7 +598,9 @@
   function speakModel(index) {
     var session = state.lastSession;
     if (!session || !session.turns[index]) return;
-    speakText(session.turns[index].model);
+    var sample = modelAnswerText(session.turns[index], session);
+    if (!sample) return toast("재생할 예시 답안이 없습니다.");
+    speakText(sample);
   }
 
   function setMicButtonsDisabled(disabled) {
@@ -925,6 +927,10 @@
       var keys = turn.keywordsHit.length
         ? turn.keywordsHit.map(function (word) { return dictWordHtml(word, "kw"); }).join(" ")
         : '<span class="kw">핵심 단어가 거의 없습니다</span>';
+      var modelText = modelAnswerText(turn, session);
+      var modelBody = modelText
+        ? '<p class="model-block" lang="en">' + linkEnglishWords(modelText) + "</p>"
+        : '<p class="fineprint">이 질문에 연결된 예시 답안 데이터를 찾지 못했습니다.</p>';
       return '<article class="q-card"><header class="q-card-head"><div><p class="eyebrow">' + label +
         "</p><h3 lang=\"en\">" + escapeHtml(turn.prompt) + '</h3></div><p class="q-score ' + scoreClass(turn.scores.overall) +
         '">' + turn.scores.overall + '</p></header><p class="meta-line">의도 · ' + escapeHtml(turn.focus) + " · " +
@@ -935,9 +941,12 @@
         "<h4>어휘</h4><ul class=\"issue-list\">" + vocab + "</ul>" +
         "<h4>" + (turn.structure.mode === "star" ? "STAR 구조" : "주장 · 이유 · 예시") + "</h4><ul class=\"check-list\">" + checks + "</ul>" +
         "<h4>맞춘 포인트</h4><p>" + keys + "</p>" +
-        '<details><summary>모범 답안</summary><p class="model-block" lang="en">' + linkEnglishWords(turn.model) +
-        '</p><button class="btn ghost small" type="button" data-action="speak-model" data-index="' + index +
-        '">모범 답안 듣기</button></details></article>';
+        '<details open><summary>모범 답안</summary>' + modelBody +
+        (modelText
+          ? '<button class="btn ghost small" type="button" data-action="speak-model" data-index="' + index +
+            '">모범 답안 듣기</button>'
+          : "") +
+        "</details></article>";
     }).join("");
     var delta = compareLine(session);
     return '<p class="kicker">Report</p><h1 class="page-title">' + escapeHtml(session.config.purposeLabel) + " · " +
@@ -953,6 +962,18 @@
 
   function studentAnswerText(turn) {
     return String(turn && turn.answer != null ? turn.answer : "").trim();
+  }
+
+  function modelAnswerText(turn, session) {
+    var text = String(turn && turn.model != null ? turn.model : "").trim();
+    if (text) return text;
+    var id = turn && turn.questionId;
+    var bank = window.InterviewData && InterviewData.bank;
+    if (!id || !bank || !bank.length) return "";
+    var entry = bank.find(function (item) { return item.id === id; });
+    if (!entry || !entry.model) return "";
+    var majorEn = session && session.config && session.config.majorEn ? session.config.majorEn : "your field";
+    return String(entry.model).split("{major}").join(majorEn).trim();
   }
 
   function buildCoachRequestTurns(session) {
