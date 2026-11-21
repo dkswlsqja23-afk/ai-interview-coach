@@ -951,17 +951,41 @@
       '<div class="q-list">' + cards + '</div><div class="report-actions" style="margin-top:18px"><button class="btn ghost" type="button" data-action="goto" data-view="history">연습 기록</button><button class="btn primary" type="button" data-action="practice-again">이 설정으로 다시</button></div>';
   }
 
-  function aiCoachHtml(data) {
+  function studentAnswerText(turn) {
+    return String(turn && turn.answer != null ? turn.answer : "").trim();
+  }
+
+  function buildCoachRequestTurns(session) {
+    var list = (session && session.turns) || [];
+    var turns = list.map(function (turn) {
+      var userAnswer = studentAnswerText(turn);
+      return {
+        prompt: String(turn.prompt || "").slice(0, 500),
+        userAnswer: userAnswer.slice(0, 1200),
+        answer: userAnswer.slice(0, 1200),
+        modelReference: String(turn.model || "").slice(0, 800),
+      };
+    });
+    var missing = turns.filter(function (turn) { return !turn.userAnswer; }).length;
+    return { turns: turns, missing: missing, total: turns.length };
+  }
+
+  function aiCoachHtml(data, session) {
+    var sessionTurns = session && session.turns ? session.turns : [];
     var turns = (data.turns || []).map(function (turn, index) {
       var rewrite = turn.rewrite
-        ? '<p class="model-block" lang="en">' + linkEnglishWords(turn.rewrite) + "</p>"
+        ? '<p class="fineprint">개선 예시 (당신 답변을 다듬은 문장)</p><p class="model-block" lang="en">' + linkEnglishWords(turn.rewrite) + "</p>"
         : "";
-      return '<article class="ai-turn"><h3>질문 ' + (index + 1) + "</h3><p>" + escapeHtml(turn.note || "") + "</p>" + rewrite + "</article>";
+      var mine = studentAnswerText(sessionTurns[index]);
+      var mineBlock = mine
+        ? '<p class="fineprint">분석 대상 · 내가 제출한 답변</p><p class="answer-block" lang="en">' + linkEnglishWords(mine) + "</p>"
+        : '<p class="fineprint">저장된 답변을 찾지 못했습니다.</p>';
+      return '<article class="ai-turn"><h3>질문 ' + (index + 1) + "</h3>" + mineBlock + "<p>" + escapeHtml(turn.note || "") + "</p>" + rewrite + "</article>";
     }).join("");
     var via = data.provider === "groq" ? "Groq" : "Gemini";
     return '<p class="kicker">AI Coach</p><h2>이번 답에 대한 코치</h2><p class="ai-summary">' +
       escapeHtml(data.summary || "") + "</p>" + turns +
-      '<p class="meta-line">' + via + "로 작성했습니다.</p>";
+      '<p class="meta-line">' + via + "로 작성했습니다. 코치 의견은 위에 표시된 제출 답변만 기준으로 합니다.</p>";
   }
 
   function rememberAiCoach(session, data) {
@@ -978,19 +1002,29 @@
     var box = document.querySelector("[data-ai-coach]");
     if (!box) return;
     if (session.aiCoach) {
-      box.innerHTML = aiCoachHtml(session.aiCoach);
+      box.innerHTML = aiCoachHtml(session.aiCoach, session);
+      return;
+    }
+    var packed = buildCoachRequestTurns(session);
+    if (!packed.total || packed.missing === packed.total) {
+      box.innerHTML =
+        '<p class="kicker">AI Coach</p><h2>코치 의견을 불러올 수 없습니다</h2><p>' +
+        escapeHtml("제출된 답변이 비어 있어 AI 코치를 요청하지 않았습니다. 면접 답변을 입력한 뒤 다시 시도해 주세요.") +
+        '</p><p class="fineprint">규칙 기반 리포트와 점수는 위 카드에 기록된 답변을 기준으로 합니다.</p>';
+      return;
+    }
+    if (packed.missing > 0) {
+      box.innerHTML =
+        '<p class="kicker">AI Coach</p><h2>코치 의견을 불러올 수 없습니다</h2><p>' +
+        escapeHtml(packed.missing + "개 문항의 답변이 비어 있습니다. 모범 답안으로 대체하지 않습니다. 다시 면접을 완료해 주세요.") +
+        '</p><p class="fineprint">규칙 기반 리포트는 저장된 답변이 있는 문항만 참고하세요.</p>';
       return;
     }
     var payload = {
       purpose: session.config.purposeLabel,
       major: session.config.majorKo,
       difficulty: session.config.difficultyLabel,
-      turns: (session.turns || []).map(function (turn) {
-        return {
-          prompt: String(turn.prompt || "").slice(0, 500),
-          answer: String(turn.answer || "").slice(0, 1200)
-        };
-      })
+      turns: packed.turns
     };
     fetch("/api/coach", {
       method: "POST",
@@ -1013,7 +1047,9 @@
         if (!data || !data.summary) throw new Error("empty");
         rememberAiCoach(session, data);
         var current = document.querySelector("[data-ai-coach]");
-        if (current && state.lastSession && state.lastSession.id === session.id) current.innerHTML = aiCoachHtml(data);
+        if (current && state.lastSession && state.lastSession.id === session.id) {
+          current.innerHTML = aiCoachHtml(data, session);
+        }
       })
       .catch(function (error) {
         var current = document.querySelector("[data-ai-coach]");
@@ -1021,10 +1057,14 @@
         var status = error && error.message ? error.message : "";
         var code = error && error.code ? error.code : "";
         var hint = "규칙 기반 리포트는 위에 그대로 있습니다.";
-        if (status === "404" || code === "coach-unconfigured") {
-          hint = "배포 사이트에서는 Netlify 환경 변수에 API 키가 설정되어 있어야 합니다. 로컬에서는 server.ps1로 연 주소로 열어 주세요.";
+        if (status === "404") {
+          hint = "AI 코치 주소(/api/coach)를 찾지 못했습니다. Netlify에 Functions와 netlify.toml 리다이렉트가 포함된 최신 배포인지 확인해 주세요.";
+        } else if (code === "coach-unconfigured") {
+          hint = "서버에 API 키가 연결되지 않았습니다. 이 Netlify 사이트의 Environment variables에 GEMINI_API_KEY 또는 GROQ_API_KEY(또는 gemini_api_key, groq_api_key)를 넣은 뒤, Deploys에서 Clear cache and deploy site로 다시 배포해 주세요. Scopes는 All scopes, Production에 포함되어야 합니다.";
         } else if (code === "coach-unavailable" || status === "502" || status === "503") {
-          hint = "AI 서비스가 일시적으로 응답하지 않았습니다. 잠시 후 리포트에서 다시 열거나, 로컬 서버로 연습해 보세요.";
+          hint = "AI 서비스가 일시적으로 응답하지 않았습니다. 키가 맞는지 확인한 뒤 다시 배포해 보세요.";
+        } else if (code === "missing-student-answers") {
+          hint = "제출된 사용자 답변이 서버로 전달되지 않았습니다. 모범 답안으로 분석하지 않습니다. 면접을 다시 완료해 주세요.";
         } else if (status === "Failed to fetch" || status.indexOf("fetch") >= 0) {
           hint = "네트워크 연결을 확인해 주세요.";
         }

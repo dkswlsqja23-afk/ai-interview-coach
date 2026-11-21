@@ -7,21 +7,37 @@ function readKey(primary, fallback) {
   return value;
 }
 
+function studentAnswerFromTurn(turn) {
+  var text = turn.userAnswer != null ? turn.userAnswer : turn.answer;
+  return String(text == null ? "" : text).trim();
+}
+
 function buildPrompt(data) {
   var lines = [];
   lines.push("You are an English interview coach helping a Korean student.");
   lines.push("Purpose: " + (data.purpose || ""));
   lines.push("Major or role: " + (data.major || ""));
   lines.push("Difficulty: " + (data.difficulty || ""));
-  lines.push("Write the summary and notes in Korean. Write each rewrite in natural English.");
+  lines.push("");
+  lines.push("Rules (mandatory):");
+  lines.push("- Feedback must be based ONLY on each line labeled 'Student answer'. That text is what the candidate typed or spoke.");
+  lines.push("- Never treat 'Reference model answer' as the student's answer. Do not copy or paraphrase the reference as if it were theirs.");
+  lines.push("- In each turn note (Korean), evaluate grammar, vocabulary, relevance to the question, logical structure, and one concrete improvement based on the student answer.");
+  lines.push("- rewrite must improve the SAME ideas in the student answer in natural English. It is not a replacement sample answer from a textbook.");
+  lines.push("- Write the summary and turn notes in Korean. Write each rewrite in English.");
   lines.push('Return only JSON with this shape:');
   lines.push('{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences","rewrite":"2 to 4 English sentences"}]}');
   var turns = Array.isArray(data.turns) ? data.turns : [];
   lines.push("The turns array must have exactly " + turns.length + " items, in the same order.");
   turns.forEach(function (turn, index) {
+    var student = studentAnswerFromTurn(turn).slice(0, 1200);
+    var model = String(turn.modelReference || "").trim().slice(0, 800);
     lines.push("");
     lines.push("Question " + (index + 1) + ": " + String(turn.prompt || "").slice(0, 500));
-    lines.push("Answer " + (index + 1) + ": " + String(turn.answer || "").slice(0, 1200));
+    lines.push("Student answer " + (index + 1) + ": " + student);
+    if (model) {
+      lines.push("Reference model answer " + (index + 1) + " (comparison only, NOT the student): " + model);
+    }
   });
   return lines.join("\n");
 }
@@ -124,6 +140,16 @@ exports.handler = async function (event) {
 
   if (!data || !Array.isArray(data.turns) || !data.turns.length) {
     return jsonResponse(400, { error: "missing-turns" });
+  }
+
+  var nonempty = data.turns.filter(function (turn) {
+    return studentAnswerFromTurn(turn).length > 0;
+  });
+  if (!nonempty.length) {
+    return jsonResponse(400, { error: "missing-student-answers" });
+  }
+  if (nonempty.length < data.turns.length) {
+    return jsonResponse(400, { error: "missing-student-answers" });
   }
 
   var geminiKey = readKey("GEMINI_API_KEY", "gemini_api_key");
