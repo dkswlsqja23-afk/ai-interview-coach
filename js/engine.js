@@ -5,8 +5,8 @@
     { id: "grammar", label: "문법" },
     { id: "vocabulary", label: "어휘" },
     { id: "pace", label: "속도" },
-    { id: "structure", label: "구조" },
-    { id: "relevance", label: "적합성" },
+    { id: "structure", label: "내용·구조" },
+    { id: "relevance", label: "질문 적합성" },
   ];
 
   const BASICS = [
@@ -259,6 +259,9 @@
 
     const shape = answerShape(text, wordCount);
     const treatAsSentence = shape === "sentence";
+    const keywords = question.keywords || [];
+    const keywordsHit = keywords.filter(function (keyword) { return contains(text, keyword); }).slice(0, 8);
+    const needed = Math.min(6, keywords.length || 1);
 
     const grammar = [];
     if (shape === "token" || shape === "fragment") {
@@ -299,16 +302,21 @@
       return countEnglishWords(sentence) > 45;
     });
 
-    let grammarScore = 92 - Math.min(grammar.length, 4) * 11;
-    if (shape === "token") grammarScore = Math.min(grammarScore, 38);
-    else if (shape === "fragment") grammarScore = Math.min(grammarScore, 48);
-    if (longSentence) grammarScore -= 4;
-    if (hangulRatio > 0.25) grammarScore = Math.min(grammarScore, 45);
-    grammarScore = clamp(Math.round(grammarScore), 15, 100);
+    let grammarScore;
+    if (wordCount === 0) {
+      grammarScore = 0;
+    } else if (shape === "token") {
+      grammarScore = keywordsHit.length > 0 ? 12 : 6;
+    } else if (shape === "fragment") {
+      grammarScore = clamp(72 - Math.min(grammar.length, 4) * 14, 0, 40);
+    } else {
+      grammarScore = 100 - Math.min(grammar.length, 4) * 14;
+      if (longSentence) grammarScore -= 4;
+      if (hangulRatio > 0.25) grammarScore = Math.min(grammarScore, 45);
+      grammarScore = clamp(Math.round(grammarScore), 0, 100);
+    }
 
     const vocabulary = [];
-    const keywords = question.keywords || [];
-    const keywordsHit = keywords.filter(function (keyword) { return contains(text, keyword); }).slice(0, 8);
     const missedKeywords = keywords.filter(function (keyword) {
       return !contains(text, keyword);
     });
@@ -332,16 +340,20 @@
     CONNECTORS.forEach(function (phrase) {
       if (contains(text, phrase)) connectorCount += 1;
     });
-    let vocabularyScore = difficulty === "advanced" ? 68 : difficulty === "intermediate" ? 74 : 80;
-    vocabularyScore += Math.min(connectorCount, 2) * 8;
     const basicSwaps = vocabulary.filter(function (item) { return item.kind !== "keyword"; }).length;
-    vocabularyScore -= Math.min(basicSwaps, 3) * (difficulty === "beginner" ? 2 : 6);
-    if (keywordsHit.length === 0 && keywords.length) vocabularyScore = Math.min(vocabularyScore, shape === "token" ? 32 : 45);
-    else if (keywordsHit.length < Math.min(2, keywords.length) && shape !== "sentence") {
-      vocabularyScore = Math.min(vocabularyScore, 52);
+    let vocabularyScore;
+    if (wordCount === 0) {
+      vocabularyScore = 0;
+    } else if (shape === "token") {
+      vocabularyScore = keywordsHit.length > 0 ? 22 : 5;
+    } else {
+      const kwRatio = keywords.length ? keywordsHit.length / needed : 0.35;
+      vocabularyScore = Math.round(kwRatio * 75) + Math.min(connectorCount, 2) * 6;
+      vocabularyScore -= Math.min(basicSwaps, 3) * (difficulty === "beginner" ? 4 : 7);
+      if (shape === "fragment") vocabularyScore = Math.min(vocabularyScore, 48);
+      if (difficulty === "advanced" && connectorCount === 0 && wordCount > 45) vocabularyScore -= 8;
+      vocabularyScore = clamp(Math.round(vocabularyScore), 0, 100);
     }
-    if (difficulty === "advanced" && connectorCount === 0 && wordCount > 45) vocabularyScore -= 8;
-    vocabularyScore = clamp(Math.round(vocabularyScore), 30, 100);
 
     const fillers = [];
     function pushFiller(label, re) {
@@ -366,22 +378,40 @@
     const pace = paceScore(wpm, difficulty);
 
     const structure = structureOf(text, !!question.expectsStar);
-    let structureScore = Math.round((structure.hitCount / structure.parts.length) * 100);
-    if (wordCount >= 30 && structure.hitCount >= 1) structureScore = Math.max(structureScore, 45);
-    if (wordCount < 12) structureScore = Math.min(structureScore, 42);
-    structureScore = clamp(structureScore, 8, 100);
+    const kwRatio = keywords.length ? Math.min(1, keywordsHit.length / needed) : 0;
 
-    const needed = Math.min(6, keywords.length || 1);
-    const ratio = keywords.length ? Math.min(1, keywordsHit.length / needed) : 0.5;
-    let relevance = Math.round(28 + ratio * 72);
-    if (wordCount < 10) relevance = Math.min(relevance, 40);
-    else if (wordCount < 18) relevance = Math.min(relevance, 70);
-    if (hangulRatio > 0.25) relevance = Math.min(relevance, 34);
-    if (question.kind === "followup") {
-      const lengthScore = wordCount >= 40 ? 88 : wordCount >= 22 ? 74 : wordCount >= 12 ? 58 : 36;
-      relevance = Math.round(relevance * 0.5 + lengthScore * 0.5);
+    let structureScore;
+    if (wordCount === 0) {
+      structureScore = 0;
+    } else if (shape === "token") {
+      structureScore = 0;
+    } else if (shape === "fragment") {
+      structureScore = Math.round((structure.hitCount / structure.parts.length) * 38);
+    } else {
+      structureScore = Math.round((structure.hitCount / structure.parts.length) * 100);
+      if (structure.hitCount === 0 && kwRatio < 0.25) structureScore = Math.min(structureScore, 30);
     }
-    relevance = clamp(relevance, 8, 100);
+    structureScore = clamp(structureScore, 0, 100);
+
+    let relevance;
+    if (wordCount === 0) {
+      relevance = 0;
+    } else if (shape === "token") {
+      relevance = keywordsHit.length > 0 ? 16 : 5;
+    } else if (shape === "fragment") {
+      relevance = Math.round(kwRatio * 50 + (structure.hitCount / structure.parts.length) * 20);
+      relevance = clamp(relevance, 0, 42);
+    } else {
+      relevance = Math.round(kwRatio * 72 + (structure.hitCount / structure.parts.length) * 28);
+      if (hangulRatio > 0.25) relevance = Math.min(relevance, 28);
+    }
+    relevance = clamp(relevance, 0, 100);
+
+  const offTopic =
+      shape === "sentence" &&
+      keywords.length >= 2 &&
+      keywordsHit.length === 0 &&
+      kwRatio < 0.12;
 
     const scores = {
       grammar: grammarScore,
@@ -391,21 +421,32 @@
       relevance: relevance,
       overall: 0,
     };
-    const weights = pace == null
-      ? { grammar: 0.26, vocabulary: 0.18, structure: 0.3, relevance: 0.26 }
-      : { grammar: 0.22, vocabulary: 0.16, pace: 0.16, structure: 0.24, relevance: 0.22 };
+    /* 종합 100 = 질문 적합성 35% + 내용·구조 30% + 문법 20% + 어휘 15% (속도는 표시만) */
+    const weights = { relevance: 0.35, structure: 0.3, grammar: 0.2, vocabulary: 0.15 };
     let overall = 0;
     Object.keys(weights).forEach(function (key) {
       overall += scores[key] * weights[key];
     });
-    overall -= Math.min(10, fillerTotal * 2);
-    scores.overall = clamp(Math.round(overall), 0, 100);
+    if (fillerTotal > 0 && overall > 15) {
+      overall -= Math.min(8, fillerTotal * 2);
+    }
+    overall = Math.round(overall);
+    if (wordCount === 0) {
+      overall = 0;
+    } else if (shape === "token" && keywordsHit.length === 0) {
+      overall = Math.min(overall, 10);
+    } else if (offTopic || (keywords.length > 0 && keywordsHit.length === 0 && wordCount >= 3)) {
+      overall = Math.min(overall, 20);
+    }
+    scores.overall = clamp(overall, 0, 100);
 
     const comments = [];
     if (hangulRatio > 0.15) {
       comments.push("영어 면접 연습이므로, 핵심 문장부터 영어로 다시 말해 보세요.");
     }
-    if (wordCount < thinThreshold(difficulty)) {
+    if (shape === "token" || (shape === "fragment" && scores.overall <= 25)) {
+      comments.push("질문에 답하려면 단어 하나가 아니라, 주어와 동사가 있는 완성된 문장이 필요합니다.");
+    } else if (wordCount < thinThreshold(difficulty)) {
       comments.push("분량이 짧습니다. 주장, 이유, 예시가 한 문장씩만 있어도 답이 섭니다.");
     }
     const missing = structure.parts.filter(function (part) { return !part.hit; }).map(function (part) { return part.label; });
@@ -432,8 +473,11 @@
     if (longSentence) {
       comments.push("한 문장이 너무 깁니다. 마침표로 나누면 면접관이 따라오기 쉽습니다.");
     }
-    if (relevance < 65 && hangulRatio <= 0.15) {
+    if (scores.relevance < 45 && hangulRatio <= 0.15 && shape !== "token") {
       comments.push("질문의 의도(" + (question.focus || "핵심") + ")에 맞는 말을 답의 첫 문장에 두세요.");
+    }
+    if (offTopic || (keywordsHit.length === 0 && keywords.length && wordCount >= 4)) {
+      comments.push("답변 내용이 질문과 거리가 있습니다. 질문에서 묻는 주제 단어를 포함해 다시 말해 보세요.");
     }
     if (scores.overall >= 84 && comments.length < 3 && hangulRatio < 0.1) {
       comments.push("뼈대는 좋습니다. 같은 구조로 한 번 더 소리 내어 말해 보세요.");
