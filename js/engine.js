@@ -92,6 +92,21 @@
     return new RegExp("\\b" + body + "(?:es|s|ed|ing)?\\b", "i").test(source);
   }
 
+  /** 단어 · 짧은 조각 · 완성된 문장 구분 */
+  function answerShape(text, wordCount) {
+    if (wordCount <= 0) return "empty";
+    if (wordCount === 1) return "token";
+    const hasEnd = /[.?!]$/.test(text.trim());
+    const hasClause =
+      /\b(?:i|we|they|he|she|it|you|my|our|the|this|that)\b[^.?!]{0,160}\b(?:am|is|are|was|were|have|has|had|want|wanted|like|need|study|learn|think|believe|chose|choose|did|do|does|can|will|would|because)\b/i.test(
+        text
+      );
+    if (wordCount <= 3 && !hasEnd && !hasClause) return "fragment";
+    if (wordCount <= 5 && !hasClause && !hasEnd) return "fragment";
+    if (hasClause || hasEnd || wordCount >= 8) return "sentence";
+    return "fragment";
+  }
+
   function countPhrase(text, phrase) {
     const body = escapeReg(phrase).replace(/\s+/g, "\\s+");
     const re = new RegExp("\\b" + body + "\\b", "gi");
@@ -242,51 +257,89 @@
     const letters = (text.match(/[A-Za-z가-힣]/g) || []).length;
     const hangulRatio = letters ? hangulChars / letters : 0;
 
+    const shape = answerShape(text, wordCount);
+    const treatAsSentence = shape === "sentence";
+
     const grammar = [];
-    PATTERNS.forEach(function (pattern) {
-      if (grammar.length >= 4) return;
-      const found = text.match(pattern.re);
-      if (found) {
-        grammar.push({ excerpt: found[0], fix: pattern.fix, explain: pattern.explain });
+    if (shape === "token" || shape === "fragment") {
+      const excerpt = text.length > 48 ? text.slice(0, 48) + "…" : text || "(비어 있음)";
+      grammar.push({
+        excerpt: excerpt,
+        fix: "완성된 문장",
+        explain:
+          shape === "token"
+            ? "단어 하나만으로는 면접 답변이 되지 않습니다. 주어와 동사가 있는 문장으로 질문에 맞는 이유나 예시를 말해 보세요."
+            : "문장 조각만 있어 답변이 완성되지 않았습니다. 주어·동사를 갖춘 한 문장 이상으로 설명해 보세요.",
+      });
+    }
+    if (treatAsSentence) {
+      PATTERNS.forEach(function (pattern) {
+        if (grammar.length >= 4) return;
+        const found = text.match(pattern.re);
+        if (found) {
+          grammar.push({ excerpt: found[0], fix: pattern.fix, explain: pattern.explain });
+        }
+      });
+      const scrubbed = text.replace(/\b(?:i\.e\.|e\.g\.)/gi, " ");
+      if (grammar.length < 4 && /\bi\b/.test(scrubbed)) {
+        grammar.push({ excerpt: "i", fix: "I", explain: "주어 I는 항상 대문자로 씁니다." });
       }
-    });
-    const scrubbed = text.replace(/\b(?:i\.e\.|e\.g\.)/gi, " ");
-    if (grammar.length < 4 && /\bi\b/.test(scrubbed)) {
-      grammar.push({ excerpt: "i", fix: "I", explain: "주어 I는 항상 대문자로 씁니다." });
-    }
-    if (grammar.length < 4 && (/^[a-z]/.test(text) || /[.?!]\s+[a-z]/.test(text))) {
-      grammar.push({ excerpt: "문장 시작", fix: "대문자", explain: "문장 첫 글자는 대문자로 시작하세요." });
-    }
-    if (grammar.length < 4 && wordCount > 12 && !/[.?!]$/.test(text)) {
-      grammar.push({ excerpt: "마침표", fix: ".", explain: "문장 끝에 마침표를 찍으면 답이 정리되어 보입니다." });
-    }
-    const repeated = text.match(/\b([A-Za-z]{2,})\s+\1\b/i);
-    if (grammar.length < 4 && repeated) {
-      grammar.push({ excerpt: repeated[0], fix: repeated[1], explain: "같은 단어가 바로 반복되었습니다." });
+      if (grammar.length < 4 && (/^[a-z]/.test(text) || /[.?!]\s+[a-z]/.test(text))) {
+        grammar.push({ excerpt: "문장 시작", fix: "대문자", explain: "문장 첫 글자는 대문자로 시작하세요." });
+      }
+      if (grammar.length < 4 && wordCount > 12 && !/[.?!]$/.test(text)) {
+        grammar.push({ excerpt: "마침표", fix: ".", explain: "문장 끝에 마침표를 찍으면 답이 정리되어 보입니다." });
+      }
+      const repeated = text.match(/\b([A-Za-z]{2,})\s+\1\b/i);
+      if (grammar.length < 4 && repeated) {
+        grammar.push({ excerpt: repeated[0], fix: repeated[1], explain: "같은 단어가 바로 반복되었습니다." });
+      }
     }
     const longSentence = text.split(/[.?!]+/).some(function (sentence) {
       return countEnglishWords(sentence) > 45;
     });
 
     let grammarScore = 92 - Math.min(grammar.length, 4) * 11;
+    if (shape === "token") grammarScore = Math.min(grammarScore, 38);
+    else if (shape === "fragment") grammarScore = Math.min(grammarScore, 48);
     if (longSentence) grammarScore -= 4;
     if (hangulRatio > 0.25) grammarScore = Math.min(grammarScore, 45);
     grammarScore = clamp(Math.round(grammarScore), 15, 100);
 
     const vocabulary = [];
-    BASICS.forEach(function (item) {
-      if (vocabulary.length >= 3) return;
-      if (countPhrase(text, item.word) > 0) {
-        vocabulary.push({ from: item.word, to: item.to });
-      }
+    const keywords = question.keywords || [];
+    const keywordsHit = keywords.filter(function (keyword) { return contains(text, keyword); }).slice(0, 8);
+    const missedKeywords = keywords.filter(function (keyword) {
+      return !contains(text, keyword);
     });
+    if (missedKeywords.length && (shape !== "sentence" || keywordsHit.length < Math.min(3, keywords.length || 1))) {
+      vocabulary.push({
+        kind: "keyword",
+        from: "질문 관련 어휘",
+        to: missedKeywords.slice(0, 4),
+        explain: "질문 의도(" + (question.focus || "핵심") + ")에 맞는 표현을 답에 넣어 보세요.",
+      });
+    }
+    if (treatAsSentence) {
+      BASICS.forEach(function (item) {
+        if (vocabulary.length >= 4) return;
+        if (countPhrase(text, item.word) > 0) {
+          vocabulary.push({ from: item.word, to: item.to });
+        }
+      });
+    }
     let connectorCount = 0;
     CONNECTORS.forEach(function (phrase) {
       if (contains(text, phrase)) connectorCount += 1;
     });
     let vocabularyScore = difficulty === "advanced" ? 68 : difficulty === "intermediate" ? 74 : 80;
     vocabularyScore += Math.min(connectorCount, 2) * 8;
-    vocabularyScore -= Math.min(vocabulary.length, 3) * (difficulty === "beginner" ? 2 : 6);
+    const basicSwaps = vocabulary.filter(function (item) { return item.kind !== "keyword"; }).length;
+    vocabularyScore -= Math.min(basicSwaps, 3) * (difficulty === "beginner" ? 2 : 6);
+    if (keywordsHit.length === 0 && keywords.length) vocabularyScore = Math.min(vocabularyScore, shape === "token" ? 32 : 45);
+    else if (keywordsHit.length < Math.min(2, keywords.length) && shape !== "sentence") {
+      vocabularyScore = Math.min(vocabularyScore, 52);
+    }
     if (difficulty === "advanced" && connectorCount === 0 && wordCount > 45) vocabularyScore -= 8;
     vocabularyScore = clamp(Math.round(vocabularyScore), 30, 100);
 
@@ -318,8 +371,6 @@
     if (wordCount < 12) structureScore = Math.min(structureScore, 42);
     structureScore = clamp(structureScore, 8, 100);
 
-    const keywords = question.keywords || [];
-    const keywordsHit = keywords.filter(function (keyword) { return contains(text, keyword); }).slice(0, 8);
     const needed = Math.min(6, keywords.length || 1);
     const ratio = keywords.length ? Math.min(1, keywordsHit.length / needed) : 0.5;
     let relevance = Math.round(28 + ratio * 72);

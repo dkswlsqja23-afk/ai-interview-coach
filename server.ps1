@@ -53,13 +53,15 @@ function Get-CoachPrompt($data) {
   $lines += "Difficulty: $($data.difficulty)"
   $lines += ""
   $lines += "Rules (mandatory):"
-  $lines += "- Feedback must be based ONLY on each line labeled 'Student answer'. That text is what the candidate typed or spoke."
-  $lines += "- Never treat 'Reference model answer' as the student's answer. Do not copy or paraphrase the reference as if it were theirs."
-  $lines += "- In each turn note (Korean), evaluate grammar, vocabulary, relevance to the question, logical structure, and one concrete improvement based on the student answer."
-  $lines += "- rewrite must improve the SAME ideas in the student answer in natural English. It is not a replacement sample answer from a textbook."
-  $lines += "Write the summary and turn notes in Korean. Write each rewrite in English."
+  $lines += "- Evaluate ONLY the exact text on each line labeled 'Student answer'. That is the full submission."
+  $lines += "- Never infer, invent, or praise experiences, examples, reasons, or stories that are not explicitly in the Student answer."
+  $lines += "- Do not use the interview question text as if the student said it. The question is context only."
+  $lines += "- In each turn note (Korean), comment on grammar, vocabulary, relevance to the question, and logical structure of the Student answer only."
+  $lines += "- If the Student answer is very short (e.g. one word like \"one\") or empty of ideas, state clearly that it does not answer the question and lacks explanation."
+  $lines += "- The summary (Korean) must describe only what appears across the Student answer lines. Do not fabricate missing answers."
+  $lines += "Write the summary and turn notes in Korean."
   $lines += "Return only JSON with this shape:"
-  $lines += '{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences","rewrite":"2 to 4 English sentences"}]}'
+  $lines += '{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences"}]}'
   $lines += "The turns array must have exactly $($data.turns.Count) items, in the same order."
   $i = 1
   foreach ($turn in $data.turns) {
@@ -67,12 +69,8 @@ function Get-CoachPrompt($data) {
     $lines += "Question ${i}: $($turn.prompt)"
     $student = Get-StudentAnswer $turn
     if ($student.Length -gt 1200) { $student = $student.Substring(0, 1200) }
-    $lines += "Student answer ${i}: $student"
-    if ($turn.PSObject.Properties["modelReference"]) {
-      $model = [string]$turn.modelReference
-      if ($model.Trim().Length -gt 800) { $model = $model.Substring(0, 800) }
-      if ($model.Trim()) { $lines += "Reference model answer ${i} (comparison only, NOT the student): $model" }
-    }
+    if (-not $student.Trim()) { $student = "(empty)" }
+    $lines += "Student answer ${i} (analyze this text only): $student"
     $i += 1
   }
   return ($lines -join "`n")
