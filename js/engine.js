@@ -466,6 +466,7 @@
         keywordsHit: analysis.keywordsHit,
         fillers: analysis.fillers,
         comments: analysis.comments,
+        questionId: raw.question.id,
         model: raw.question.model,
         wordCount: analysis.wordCount,
       };

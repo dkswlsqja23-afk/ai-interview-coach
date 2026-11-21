@@ -38,13 +38,26 @@ function Write-CoachLog([string]$line) {
   if ($safe.Length -gt 240) { $safe = $safe.Substring(0, 240) }
   Add-Content -LiteralPath (Join-Path $root "coach-debug.log") -Value $safe -Encoding utf8
 }
+function Get-StudentAnswer($turn) {
+  $text = ""
+  if ($turn.PSObject.Properties["userAnswer"]) { $text = [string]$turn.userAnswer }
+  elseif ($turn.PSObject.Properties["answer"]) { $text = [string]$turn.answer }
+  return $text.Trim()
+}
+
 function Get-CoachPrompt($data) {
   $lines = @()
   $lines += "You are an English interview coach helping a Korean student."
   $lines += "Purpose: $($data.purpose)"
   $lines += "Major or role: $($data.major)"
   $lines += "Difficulty: $($data.difficulty)"
-  $lines += "Write the summary and notes in Korean. Write each rewrite in natural English."
+  $lines += ""
+  $lines += "Rules (mandatory):"
+  $lines += "- Feedback must be based ONLY on each line labeled 'Student answer'. That text is what the candidate typed or spoke."
+  $lines += "- Never treat 'Reference model answer' as the student's answer. Do not copy or paraphrase the reference as if it were theirs."
+  $lines += "- In each turn note (Korean), evaluate grammar, vocabulary, relevance to the question, logical structure, and one concrete improvement based on the student answer."
+  $lines += "- rewrite must improve the SAME ideas in the student answer in natural English. It is not a replacement sample answer from a textbook."
+  $lines += "Write the summary and turn notes in Korean. Write each rewrite in English."
   $lines += "Return only JSON with this shape:"
   $lines += '{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences","rewrite":"2 to 4 English sentences"}]}'
   $lines += "The turns array must have exactly $($data.turns.Count) items, in the same order."
@@ -52,7 +65,14 @@ function Get-CoachPrompt($data) {
   foreach ($turn in $data.turns) {
     $lines += ""
     $lines += "Question ${i}: $($turn.prompt)"
-    $lines += "Answer ${i}: $($turn.answer)"
+    $student = Get-StudentAnswer $turn
+    if ($student.Length -gt 1200) { $student = $student.Substring(0, 1200) }
+    $lines += "Student answer ${i}: $student"
+    if ($turn.PSObject.Properties["modelReference"]) {
+      $model = [string]$turn.modelReference
+      if ($model.Trim().Length -gt 800) { $model = $model.Substring(0, 800) }
+      if ($model.Trim()) { $lines += "Reference model answer ${i} (comparison only, NOT the student): $model" }
+    }
     $i += 1
   }
   return ($lines -join "`n")
@@ -193,30 +213,47 @@ while ($listener.IsListening) {
       $raw = $reader.ReadToEnd()
       $reader.Close()
       $data = $raw | ConvertFrom-Json
-      $keys = Get-ApiKeys
-      $prompt = Get-CoachPrompt $data
-      $provider = $null
-      $text = $null
-      if ($keys.Gemini) {
-        $text = Invoke-Gemini $keys.Gemini $prompt
-        if ($text) { $provider = "gemini" }
-      }
-      if (-not $text -and $keys.Groq) {
-        try {
-          $text = Invoke-Groq $keys.Groq $prompt
-          if ($text) { $provider = "groq" }
-        } catch {
-          $text = $null
-        }
-      }
-      if (-not $text) {
-        Send-Json $ctx.Response 502 @{ error = "coach-unavailable" }
+      $turnList = @()
+      if ($data -and $data.turns) { $turnList = @($data.turns) }
+      if (-not $turnList.Count) {
+        Send-Json $ctx.Response 400 @{ error = "missing-turns" }
       } else {
-        $coach = Convert-CoachText $text
-        Send-Json $ctx.Response 200 @{
-          provider = $provider
-          summary = [string]$coach.summary
-          turns = @($coach.turns)
+        $studentAnswers = @($turnList | ForEach-Object { Get-StudentAnswer $_ })
+        $missingAll = ($studentAnswers | Where-Object { $_.Length -gt 0 }).Count -eq 0
+        $missingAny = ($studentAnswers | Where-Object { $_.Length -eq 0 }).Count -gt 0
+        if ($missingAll -or $missingAny) {
+          Send-Json $ctx.Response 400 @{ error = "missing-student-answers" }
+        } else {
+          $keys = Get-ApiKeys
+          if (-not $keys.Gemini -and -not $keys.Groq) {
+            Send-Json $ctx.Response 503 @{ error = "coach-unconfigured" }
+          } else {
+            $prompt = Get-CoachPrompt $data
+            $provider = $null
+            $text = $null
+            if ($keys.Gemini) {
+              $text = Invoke-Gemini $keys.Gemini $prompt
+              if ($text) { $provider = "gemini" }
+            }
+            if (-not $text -and $keys.Groq) {
+              try {
+                $text = Invoke-Groq $keys.Groq $prompt
+                if ($text) { $provider = "groq" }
+              } catch {
+                $text = $null
+              }
+            }
+            if (-not $text) {
+              Send-Json $ctx.Response 502 @{ error = "coach-unavailable" }
+            } else {
+              $coach = Convert-CoachText $text
+              Send-Json $ctx.Response 200 @{
+                provider = $provider
+                summary = [string]$coach.summary
+                turns = @($coach.turns)
+              }
+            }
+          }
         }
       }
     } else {
