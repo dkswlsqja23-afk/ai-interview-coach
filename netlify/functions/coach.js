@@ -20,24 +20,21 @@ function buildPrompt(data) {
   lines.push("Difficulty: " + (data.difficulty || ""));
   lines.push("");
   lines.push("Rules (mandatory):");
-  lines.push("- Feedback must be based ONLY on each line labeled 'Student answer'. That text is what the candidate typed or spoke.");
-  lines.push("- Never treat 'Reference model answer' as the student's answer. Do not copy or paraphrase the reference as if it were theirs.");
-  lines.push("- In each turn note (Korean), evaluate grammar, vocabulary, relevance to the question, logical structure, and one concrete improvement based on the student answer.");
-  lines.push("- rewrite must improve the SAME ideas in the student answer in natural English. It is not a replacement sample answer from a textbook.");
-  lines.push("- Write the summary and turn notes in Korean. Write each rewrite in English.");
+  lines.push("- Evaluate ONLY the exact text on each line labeled 'Student answer'. That is the full submission.");
+  lines.push("- Never infer, invent, or praise experiences, examples, reasons, or stories that are not explicitly in the Student answer.");
+  lines.push("- Do not use the interview question text as if the student said it. The question is context only.");
+  lines.push("- In each turn note (Korean), comment on grammar, vocabulary, relevance to the question, and logical structure of the Student answer only.");
+  lines.push("- If the Student answer is very short (e.g. one word like \"one\") or empty of ideas, state clearly that it does not answer the question and lacks explanation.");
+  lines.push("- The summary (Korean) must describe only what appears across the Student answer lines. Do not fabricate missing answers.");
   lines.push('Return only JSON with this shape:');
-  lines.push('{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences","rewrite":"2 to 4 English sentences"}]}');
+  lines.push('{"summary":"2 Korean sentences","turns":[{"note":"1 or 2 Korean sentences"}]}');
   var turns = Array.isArray(data.turns) ? data.turns : [];
   lines.push("The turns array must have exactly " + turns.length + " items, in the same order.");
   turns.forEach(function (turn, index) {
     var student = studentAnswerFromTurn(turn).slice(0, 1200);
-    var model = String(turn.modelReference || "").trim().slice(0, 800);
     lines.push("");
     lines.push("Question " + (index + 1) + ": " + String(turn.prompt || "").slice(0, 500));
-    lines.push("Student answer " + (index + 1) + ": " + student);
-    if (model) {
-      lines.push("Reference model answer " + (index + 1) + " (comparison only, NOT the student): " + model);
-    }
+    lines.push("Student answer " + (index + 1) + " (analyze this text only): " + (student || "(empty)"));
   });
   return lines.join("\n");
 }
@@ -93,7 +90,7 @@ async function callGroq(apiKey, prompt) {
       },
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
-        temperature: 0.4,
+        temperature: 0.2,
         messages: [{ role: "user", content: prompt }],
       }),
     });

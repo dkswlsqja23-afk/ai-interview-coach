@@ -917,6 +917,10 @@
         : "<li>뚜렷한 문법 패턴은 보이지 않습니다.</li>";
       var vocab = turn.vocabulary.length
         ? turn.vocabulary.map(function (item) {
+          if (item.kind === "keyword") {
+            var kw = (item.to || []).map(dictWordHtml).join(" / ");
+            return "<li>질문과 연결되는 표현: " + kw + (item.explain ? ". " + escapeHtml(item.explain) : "") + "</li>";
+          }
           var suggestions = (item.to || []).map(dictWordHtml).join(" / ");
           return "<li>" + dictWordHtml(item.from) + " → " + suggestions + "</li>";
         }).join("")
@@ -984,29 +988,46 @@
         prompt: String(turn.prompt || "").slice(0, 500),
         userAnswer: userAnswer.slice(0, 1200),
         answer: userAnswer.slice(0, 1200),
-        modelReference: String(turn.model || "").slice(0, 800),
       };
     });
     var missing = turns.filter(function (turn) { return !turn.userAnswer; }).length;
     return { turns: turns, missing: missing, total: turns.length };
   }
 
-  function aiCoachHtml(data, session) {
+  function aiCoachTurnArticles(session, coachTurns) {
     var sessionTurns = session && session.turns ? session.turns : [];
-    var turns = (data.turns || []).map(function (turn, index) {
-      var rewrite = turn.rewrite
-        ? '<p class="fineprint">개선 예시 (당신 답변을 다듬은 문장)</p><p class="model-block" lang="en">' + linkEnglishWords(turn.rewrite) + "</p>"
-        : "";
-      var mine = studentAnswerText(sessionTurns[index]);
+    return sessionTurns.map(function (sessionTurn, index) {
+      var mine = studentAnswerText(sessionTurn);
       var mineBlock = mine
         ? '<p class="fineprint">분석 대상 · 내가 제출한 답변</p><p class="answer-block" lang="en">' + linkEnglishWords(mine) + "</p>"
         : '<p class="fineprint">저장된 답변을 찾지 못했습니다.</p>';
-      return '<article class="ai-turn"><h3>질문 ' + (index + 1) + "</h3>" + mineBlock + "<p>" + escapeHtml(turn.note || "") + "</p>" + rewrite + "</article>";
+      var note = coachTurns && coachTurns[index] && coachTurns[index].note ? coachTurns[index].note : "";
+      var coachBlock = note
+        ? "<h4>이번 답변에 대한 코치</h4><p>" + escapeHtml(note) + "</p>"
+        : "<h4>이번 답변에 대한 코치</h4><p class=\"fineprint\">코치 의견을 불러오지 못했습니다.</p>";
+      var sample = modelAnswerText(sessionTurn, session);
+      var exampleBlock = sample
+        ? '<h4>개선 예시</h4><p class="fineprint">면접 질문에 맞는 참고용 완성 답안입니다. 위 제출 답변과 별도입니다.</p>' +
+          '<p class="model-block" lang="en">' + linkEnglishWords(sample) + "</p>"
+        : '<h4>개선 예시</h4><p class="fineprint">이 질문에 연결된 예시 답안 데이터를 찾지 못했습니다.</p>';
+      var label = sessionTurn.kind === "followup" ? "질문 " + (sessionTurn.parentMain || index + 1) + " · 꼬리" : "질문 " + (sessionTurn.mainNumber || index + 1);
+      return '<article class="ai-turn"><h3>' + escapeHtml(label) + "</h3>" + mineBlock + coachBlock + exampleBlock + "</article>";
     }).join("");
-    var via = data.provider === "groq" ? "Groq" : "Gemini";
-    return '<p class="kicker">AI Coach</p><h2>이번 답에 대한 코치</h2><p class="ai-summary">' +
-      escapeHtml(data.summary || "") + "</p>" + turns +
-      '<p class="meta-line">' + via + "로 작성했습니다. 코치 의견은 위에 표시된 제출 답변만 기준으로 합니다.</p>";
+  }
+
+  function aiCoachHtml(data, session) {
+    var turns = aiCoachTurnArticles(session, data && data.turns);
+    var via = data && data.provider === "groq" ? "Groq" : "Gemini";
+    return '<p class="kicker">AI Coach</p><h2>이번 답에 대한 코치</h2><p class="fineprint">① 코치 의견은 제출 답변만 분석합니다. ② 개선 예시는 질문별 참고 답안입니다.</p><p class="ai-summary">' +
+      escapeHtml((data && data.summary) || "") + "</p>" + turns +
+      '<p class="meta-line">' + via + "로 작성한 코치 의견입니다. 개선 예시는 앱의 예시 답안 데이터를 표시합니다.</p>";
+  }
+
+  function aiCoachFailureHtml(session, hint) {
+    var turns = aiCoachTurnArticles(session, null);
+    return '<p class="kicker">AI Coach</p><h2>코치 의견을 불러오지 못했습니다</h2><p>' + escapeHtml(hint) +
+      '</p><p class="fineprint">① 이번 답변에 대한 코치는 표시되지 않았습니다. ② 개선 예시와 위 리포트 점수·모범 답안은 그대로 이용할 수 있습니다.</p>' +
+      turns;
   }
 
   function rememberAiCoach(session, data) {
@@ -1089,10 +1110,7 @@
         } else if (status === "Failed to fetch" || status.indexOf("fetch") >= 0) {
           hint = "네트워크 연결을 확인해 주세요.";
         }
-        current.innerHTML =
-          '<p class="kicker">AI Coach</p><h2>코치 의견을 불러오지 못했습니다</h2><p>' +
-          escapeHtml(hint) +
-          '</p><p class="fineprint">항목별 점수, 모범 답안, 추천 어휘는 그대로 이용할 수 있습니다.</p>';
+        current.innerHTML = aiCoachFailureHtml(session, hint);
       });
   }
 
